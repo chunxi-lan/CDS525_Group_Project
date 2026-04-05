@@ -1,11 +1,18 @@
 import argparse
+import os
 import time
 from datetime import datetime
 from config import Config
-from src.data_loader import get_dataloaders
+from src.data_loader import get_dataloaders, get_test_loader
 from src.models import get_model, print_model_summary
 from src.trainer import train_full
-from src.utils import set_seed, save_metrics
+from src.utils import (
+    set_seed,
+    save_metrics,
+    load_checkpoint,
+    plot_metrics_from_json_dir,
+    visualize_first_n_test_samples,
+)
 
 
 def parse_args():
@@ -36,6 +43,22 @@ def parse_args():
                         help='checkpoint filename')
     parser.add_argument('--metrics_name', type=str, default=None,
                         help='metrics filename (default: metrics_YYYYMMDD_HHMMSS.json)')
+
+    parser.add_argument('--plot_running_data', action='store_true', default=False,
+                        help='plot metrics json files from running data directory (no training)')
+    parser.add_argument('--running_data_dir', type=str,
+                        default=os.path.join(Config.PROJECT_ROOT, 'running data'),
+                        help='directory that contains metrics_*.json files')
+    parser.add_argument('--plots_dir', type=str,
+                        default=os.path.join(Config.RESULTS_DIR, 'plots'),
+                        help='output directory for plots')
+    parser.add_argument('--plot_max_epochs', type=int, default=100,
+                        help='max epochs to visualize from each json (default: 100)')
+
+    parser.add_argument('--visualize_test100', action='store_true', default=False,
+                        help='visualize first 100 test samples (ground truth only if no checkpoint exists)')
+    parser.add_argument('--checkpoint_path', type=str, default=None,
+                        help='optional checkpoint filepath; overrides --checkpoint_name')
     
     return parser.parse_args()
 
@@ -44,6 +67,68 @@ def main():
     args = parse_args()
     
     set_seed(args.seed)
+
+    did_anything = False
+
+    if args.plot_running_data:
+        plot_metrics_from_json_dir(
+            json_dir=[args.running_data_dir, Config.PROJECT_ROOT],
+            output_dir=args.plots_dir,
+            max_epochs=args.plot_max_epochs,
+        )
+        print(f"Plots saved to: {args.plots_dir}")
+        did_anything = True
+
+    if args.visualize_test100:
+        print("\nLoading data (test loader only)...")
+        test_loader, classes = get_test_loader(batch_size=128)
+
+        output_dir = os.path.join(Config.RESULTS_DIR, "test_visualizations")
+        os.makedirs(output_dir, exist_ok=True)
+
+        gt_path = os.path.join(output_dir, "test_first100_ground_truth.png")
+        visualize_first_n_test_samples(
+            test_loader=test_loader,
+            classes=classes,
+            output_path=gt_path,
+            n=100,
+            device=Config.DEVICE,
+            model=None,
+        )
+        print(f"Saved: {gt_path}")
+
+        ckpt_path = args.checkpoint_path
+        if ckpt_path is None:
+            ckpt_path = os.path.join(Config.CHECKPOINT_DIR, args.checkpoint_name)
+
+        model = None
+        if os.path.exists(ckpt_path):
+            print("\nLoading model + checkpoint for predictions...")
+            model = get_model(
+                model_name=args.model,
+                num_classes=Config.NUM_CLASSES,
+                pretrained=args.pretrained,
+                freeze_backbone=args.freeze_backbone
+            ).to(Config.DEVICE)
+            load_checkpoint(model, filename=os.path.basename(ckpt_path), save_dir=os.path.dirname(ckpt_path))
+
+            pred_path = os.path.join(output_dir, "test_first100_pred_vs_true.png")
+            visualize_first_n_test_samples(
+                test_loader=test_loader,
+                classes=classes,
+                output_path=pred_path,
+                n=100,
+                device=Config.DEVICE,
+                model=model,
+            )
+            print(f"Saved: {pred_path}")
+        else:
+            print(f"\nCheckpoint not found, skip prediction visualization: {ckpt_path}")
+
+        did_anything = True
+
+    if did_anything:
+        return
     
     print("=" * 60)
     print("CIFAR-100 Image Classification - Training Script")

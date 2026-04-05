@@ -1,4 +1,3 @@
-import os
 import torch
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
@@ -84,6 +83,30 @@ def get_dataloaders(batch_size=Config.BATCH_SIZE,
     )
 
     return train_loader, val_loader, test_loader, CIFAR100_CLASSES
+
+
+def get_test_loader(batch_size=Config.BATCH_SIZE,
+                    num_workers=Config.NUM_WORKERS,
+                    pin_memory=Config.PIN_MEMORY,
+                    data_dir=Config.DATA_DIR):
+    _, test_transform = get_data_transforms()
+
+    test_dataset = datasets.CIFAR100(
+        root=data_dir,
+        train=False,
+        download=True,
+        transform=test_transform
+    )
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory
+    )
+
+    return test_loader, CIFAR100_CLASSES
 
 
 if __name__ == '__main__':
