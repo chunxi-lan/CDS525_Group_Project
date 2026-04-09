@@ -1,7 +1,10 @@
 import argparse
 import os
 import time
+import json
 from datetime import datetime
+import matplotlib.pyplot as plt
+import numpy as np
 from config import Config
 from src.data_loader import get_dataloaders, get_test_loader
 from src.models import get_model, print_model_summary
@@ -15,7 +18,115 @@ from src.utils import (
 )
 
 
+def load_metrics(filepath):
+    """Load metrics from JSON file"""
+    with open(filepath, 'r') as f:
+        return json.load(f)
+
+def plot_single_experiment(metrics, title, save_path):
+    """Plot training loss, training accuracy, and test accuracy over epochs for a single experiment"""
+    epochs = range(1, len(metrics['train_loss']) + 1)
+    
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
+    
+    ax1.plot(epochs, metrics['train_loss'], 'b-', linewidth=2)
+    ax1.set_xlabel('Epoch', fontsize=12)
+    ax1.set_ylabel('Train Loss', fontsize=12)
+    ax1.set_title('Train Loss', fontsize=14, fontweight='bold')
+    ax1.grid(True, alpha=0.3)
+    
+    ax2.plot(epochs, metrics['train_acc'], 'g-', linewidth=2)
+    ax2.set_xlabel('Epoch', fontsize=12)
+    ax2.set_ylabel('Train Accuracy (%)', fontsize=12)
+    ax2.set_title('Train Accuracy', fontsize=14, fontweight='bold')
+    ax2.grid(True, alpha=0.3)
+    
+    ax3.plot(epochs, metrics['test_acc'], 'r-', linewidth=2)
+    ax3.set_xlabel('Epoch', fontsize=12)
+    ax3.set_ylabel('Test Accuracy (%)', fontsize=12)
+    ax3.set_title('Test Accuracy', fontsize=14, fontweight='bold')
+    ax3.grid(True, alpha=0.3)
+    
+    plt.suptitle(title, fontsize=16, fontweight='bold', y=1.02)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {save_path}")
+
+def plot_learning_rate_comparison(metrics_dict, lr_list, title, save_path):
+    """Plot training loss, training accuracy, and test accuracy over epochs for different learning rates"""
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+    
+    for idx, lr in enumerate(lr_list):
+        metrics = metrics_dict[lr]
+        epochs = range(1, len(metrics['train_loss']) + 1)
+        ax1.plot(epochs, metrics['train_loss'], color=colors[idx], label=f'lr={lr}', linewidth=2)
+        ax2.plot(epochs, metrics['train_acc'], color=colors[idx], label=f'lr={lr}', linewidth=2)
+        ax3.plot(epochs, metrics['test_acc'], color=colors[idx], label=f'lr={lr}', linewidth=2)
+    
+    ax1.set_xlabel('Epoch', fontsize=12)
+    ax1.set_ylabel('Train Loss', fontsize=12)
+    ax1.set_title('Train Loss', fontsize=14, fontweight='bold')
+    ax1.legend(fontsize=11)
+    ax1.grid(True, alpha=0.3)
+    
+    ax2.set_xlabel('Epoch', fontsize=12)
+    ax2.set_ylabel('Train Accuracy (%)', fontsize=12)
+    ax2.set_title('Train Accuracy', fontsize=14, fontweight='bold')
+    ax2.legend(fontsize=11)
+    ax2.grid(True, alpha=0.3)
+    
+    ax3.set_xlabel('Epoch', fontsize=12)
+    ax3.set_ylabel('Test Accuracy (%)', fontsize=12)
+    ax3.set_title('Test Accuracy', fontsize=14, fontweight='bold')
+    ax3.legend(fontsize=11)
+    ax3.grid(True, alpha=0.3)
+    
+    plt.suptitle(title, fontsize=16, fontweight='bold', y=1.02)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {save_path}")
+
+def plot_batch_size_comparison(metrics_dict, bs_list, title, save_path):
+    """Plot training loss, training accuracy, and test accuracy over epochs for different batch sizes"""
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+    
+    for idx, bs in enumerate(bs_list):
+        metrics = metrics_dict[bs]
+        epochs = range(1, len(metrics['train_loss']) + 1)
+        ax1.plot(epochs, metrics['train_loss'], color=colors[idx], label=f'bs={bs}', linewidth=2)
+        ax2.plot(epochs, metrics['train_acc'], color=colors[idx], label=f'bs={bs}', linewidth=2)
+        ax3.plot(epochs, metrics['test_acc'], color=colors[idx], label=f'bs={bs}', linewidth=2)
+    
+    ax1.set_xlabel('Epoch', fontsize=12)
+    ax1.set_ylabel('Train Loss', fontsize=12)
+    ax1.set_title('Train Loss', fontsize=14, fontweight='bold')
+    ax1.legend(fontsize=11)
+    ax1.grid(True, alpha=0.3)
+    
+    ax2.set_xlabel('Epoch', fontsize=12)
+    ax2.set_ylabel('Train Accuracy (%)', fontsize=12)
+    ax2.set_title('Train Accuracy', fontsize=14, fontweight='bold')
+    ax2.legend(fontsize=11)
+    ax2.grid(True, alpha=0.3)
+    
+    ax3.set_xlabel('Epoch', fontsize=12)
+    ax3.set_ylabel('Test Accuracy (%)', fontsize=12)
+    ax3.set_title('Test Accuracy', fontsize=14, fontweight='bold')
+    ax3.legend(fontsize=11)
+    ax3.grid(True, alpha=0.3)
+    
+    plt.suptitle(title, fontsize=16, fontweight='bold', y=1.02)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {save_path}")
+
 def parse_args():
+    """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='CIFAR-100 Image Classification Training')
     
     parser.add_argument('--batch_size', type=int, default=Config.BATCH_SIZE,
@@ -60,10 +171,14 @@ def parse_args():
     parser.add_argument('--checkpoint_path', type=str, default=None,
                         help='optional checkpoint filepath; overrides --checkpoint_name')
     
+    parser.add_argument('--custom_plots', action='store_true', default=False,
+                        help='generate custom plots as requested')
+    
     return parser.parse_args()
 
 
 def main():
+    """Main function for training and visualization"""
     args = parse_args()
     
     set_seed(args.seed)
@@ -125,6 +240,105 @@ def main():
         else:
             print(f"\nCheckpoint not found, skip prediction visualization: {ckpt_path}")
 
+        did_anything = True
+
+    if args.custom_plots:
+        print("\n" + "=" * 60)
+        print("Generating custom plots")
+        print("=" * 60)
+        
+        metrics_dir = args.running_data_dir
+        plots_dir = args.plots_dir
+        os.makedirs(plots_dir, exist_ok=True)
+        
+        # 1. 生成Cross Entropy的训练图
+        ce_path = os.path.join(metrics_dir, 'metrics_adam.json')
+        if os.path.exists(ce_path):
+            ce_metrics = load_metrics(ce_path)
+            plot_single_experiment(
+                ce_metrics,
+                'Cross Entropy Loss - Training Metrics',
+                os.path.join(plots_dir, 'single_cross_entropy.png')
+            )
+        
+        # 2. 生成Focal Loss的训练图
+        focal_path = os.path.join(metrics_dir, 'metrics_focal.json')
+        if os.path.exists(focal_path):
+            focal_metrics = load_metrics(focal_path)
+            plot_single_experiment(
+                focal_metrics,
+                'Focal Loss - Training Metrics',
+                os.path.join(plots_dir, 'single_focal_loss.png')
+            )
+        
+        # 3. 生成学习率对比图
+        lr_files = {
+            0.1: os.path.join(metrics_dir, 'metrics_lr0.1.json'),
+            0.01: os.path.join(metrics_dir, 'metrics_lr0.01.json'),
+            0.001: os.path.join(metrics_dir, 'metrics_lr0.001.json'),
+            0.0001: os.path.join(metrics_dir, 'metrics_lr0.0001.json'),
+        }
+        
+        lr_metrics = {}
+        for lr, path in lr_files.items():
+            if os.path.exists(path):
+                lr_metrics[lr] = load_metrics(path)
+        
+        if len(lr_metrics) >= 2:
+            lr_list1 = [lr for lr in [0.1, 0.01] if lr in lr_metrics]
+            if len(lr_list1) == 2:
+                plot_learning_rate_comparison(
+                    {lr: lr_metrics[lr] for lr in lr_list1},
+                    lr_list1,
+                    'Learning Rate Comparison (0.1, 0.01)',
+                    os.path.join(plots_dir, 'lr_comparison_0.1_0.01.png')
+                )
+            
+            lr_list2 = [lr for lr in [0.001, 0.0001] if lr in lr_metrics]
+            if len(lr_list2) == 2:
+                plot_learning_rate_comparison(
+                    {lr: lr_metrics[lr] for lr in lr_list2},
+                    lr_list2,
+                    'Learning Rate Comparison (0.001, 0.0001)',
+                    os.path.join(plots_dir, 'lr_comparison_0.001_0.0001.png')
+                )
+        
+        # 4. 生成Batch Size对比图
+        bs_files = {
+            8: os.path.join(metrics_dir, 'metrics_bs8.json'),
+            16: os.path.join(metrics_dir, 'metrics_bs16.json'),
+            32: os.path.join(metrics_dir, 'metrics_bs32.json'),
+            64: os.path.join(metrics_dir, 'metrics_bs64.json'),
+            128: os.path.join(metrics_dir, 'metrics_bs128.json'),
+        }
+        
+        bs_metrics = {}
+        for bs, path in bs_files.items():
+            if os.path.exists(path):
+                bs_metrics[bs] = load_metrics(path)
+        
+        if len(bs_metrics) >= 2:
+            bs_list1 = [bs for bs in [8, 16, 32] if bs in bs_metrics]
+            if len(bs_list1) >= 2:
+                plot_batch_size_comparison(
+                    {bs: bs_metrics[bs] for bs in bs_list1},
+                    bs_list1,
+                    'Batch Size Comparison (8, 16, 32)',
+                    os.path.join(plots_dir, 'bs_comparison_8_16_32.png')
+                )
+            
+            bs_list2 = [bs for bs in [64, 128] if bs in bs_metrics]
+            if len(bs_list2) >= 2:
+                plot_batch_size_comparison(
+                    {bs: bs_metrics[bs] for bs in bs_list2},
+                    bs_list2,
+                    'Batch Size Comparison (64, 128)',
+                    os.path.join(plots_dir, 'bs_comparison_64_128.png')
+                )
+        
+        print("\n" + "=" * 60)
+        print("All custom plots generated!")
+        print("=" * 60)
         did_anything = True
 
     if did_anything:

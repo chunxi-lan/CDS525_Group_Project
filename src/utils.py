@@ -7,6 +7,7 @@ from config import Config
 
 
 def set_seed(seed=Config.RANDOM_SEED):
+    """Set random seed"""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -17,6 +18,7 @@ def set_seed(seed=Config.RANDOM_SEED):
 
 
 def save_metrics(metrics, filename, save_dir=Config.RESULTS_DIR):
+    """Save metrics to JSON file"""
     os.makedirs(save_dir, exist_ok=True)
     filepath = os.path.join(save_dir, filename)
     with open(filepath, 'w') as f:
@@ -25,12 +27,14 @@ def save_metrics(metrics, filename, save_dir=Config.RESULTS_DIR):
 
 
 def load_metrics(filepath):
+    """Load metrics from JSON file"""
     with open(filepath, 'r') as f:
         return json.load(f)
 
 
 def save_checkpoint(model, optimizer, scheduler, epoch, val_acc,
                     filename='best_model.pth', save_dir=Config.CHECKPOINT_DIR):
+    """Save model checkpoint"""
     os.makedirs(save_dir, exist_ok=True)
     filepath = os.path.join(save_dir, filename)
     checkpoint = {
@@ -47,6 +51,7 @@ def save_checkpoint(model, optimizer, scheduler, epoch, val_acc,
 def load_checkpoint(model, optimizer=None, scheduler=None,
                     filename='best_model.pth', save_dir=Config.CHECKPOINT_DIR,
                     device=Config.DEVICE):
+    """Load model checkpoint"""
     filepath = os.path.join(save_dir, filename)
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Checkpoint not found: {filepath}")
@@ -64,10 +69,12 @@ def load_checkpoint(model, optimizer=None, scheduler=None,
 
 
 def _safe_makedirs(path: str) -> None:
+    """Safely create directory"""
     os.makedirs(path, exist_ok=True)
 
 
 def _is_number(s: str) -> bool:
+    """Check if string is a number"""
     try:
         float(s)
         return True
@@ -82,6 +89,9 @@ def _parse_experiment_from_filename(filename: str) -> dict:
 
     if base == "quick_sgd" or ("quick" in base and "sgd" in base):
         return {"label": "opt=sgd(quick)", "group": "opt", "value": "sgd_quick"}
+
+    if base in {"cross_entropy", "focal"}:
+        return {"label": f"loss={base}", "group": "loss", "value": base}
 
     if base.startswith("lr") and _is_number(base[2:]):
         value_str = base[2:]
@@ -113,6 +123,9 @@ def _parse_experiment_from_filename(filename: str) -> dict:
 
     if group in {"adam", "sgd"}:
         return {"label": f"opt={group}", "group": "opt", "value": group}
+
+    if group == "loss" and rest in {"cross_entropy", "focal"}:
+        return {"label": f"loss={rest}", "group": "loss", "value": rest}
 
     return {"label": base, "group": "misc", "value": None}
 
@@ -367,6 +380,45 @@ def plot_metrics_from_json_dir(
             "val_acc",
             "Best Val Acc by Optimizer",
             "bar_opt_best_val_acc.png",
+            sort_key=lambda r: str(r["value"]),
+            reducer=lambda ys: max(ys) if ys else float("nan"),
+        )
+    )
+
+    outputs["comparisons"].append(
+        _plot_group_overlay(
+            "loss",
+            "val_acc",
+            "loss function",
+            "overlay_loss_val_acc.png",
+            sort_key=lambda r: str(r["value"]),
+        )
+    )
+    outputs["comparisons"].append(
+        _plot_group_overlay(
+            "loss",
+            "test_acc",
+            "loss function",
+            "overlay_loss_test_acc.png",
+            sort_key=lambda r: str(r["value"]),
+        )
+    )
+    outputs["comparisons"].append(
+        _plot_final_bar(
+            "loss",
+            "test_acc",
+            "Final Test Acc by Loss Function",
+            "bar_loss_final_test_acc.png",
+            sort_key=lambda r: str(r["value"]),
+            reducer=lambda ys: ys[-1] if ys else float("nan"),
+        )
+    )
+    outputs["comparisons"].append(
+        _plot_final_bar(
+            "loss",
+            "val_acc",
+            "Best Val Acc by Loss Function",
+            "bar_loss_best_val_acc.png",
             sort_key=lambda r: str(r["value"]),
             reducer=lambda ys: max(ys) if ys else float("nan"),
         )

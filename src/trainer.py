@@ -7,6 +7,7 @@ from src.utils import save_checkpoint
 
 
 def train_one_epoch(model, train_loader, criterion, optimizer, device):
+    """Train for one epoch"""
     model.train()
     total_loss = 0.0
     correct = 0
@@ -32,6 +33,7 @@ def train_one_epoch(model, train_loader, criterion, optimizer, device):
 
 
 def validate(model, val_loader, criterion, device):
+    """Validate model"""
     model.eval()
     total_loss = 0.0
     correct = 0
@@ -54,6 +56,7 @@ def validate(model, val_loader, criterion, device):
 
 
 def test(model, test_loader, criterion, device):
+    """Test model"""
     model.eval()
     total_loss = 0.0
     correct = 0
@@ -76,6 +79,7 @@ def test(model, test_loader, criterion, device):
 
 
 def get_loss_function(loss_name=Config.LOSS_FUNCTION):
+    """Get loss function"""
     if loss_name == 'cross_entropy':
         return nn.CrossEntropyLoss()
     else:
@@ -86,6 +90,7 @@ def get_optimizer(model, optimizer_name=Config.OPTIMIZER,
                   lr=Config.LEARNING_RATE,
                   weight_decay=Config.WEIGHT_DECAY,
                   momentum=Config.MOMENTUM):
+    """Get optimizer"""
     params = [p for p in model.parameters() if p.requires_grad]
     
     if optimizer_name == 'adam':
@@ -99,6 +104,7 @@ def get_optimizer(model, optimizer_name=Config.OPTIMIZER,
 def get_scheduler(optimizer, scheduler_type='plateau',
                   patience=Config.SCHEDULER_PATIENCE,
                   factor=Config.SCHEDULER_FACTOR):
+    """Get learning rate scheduler"""
     if scheduler_type == 'plateau':
         return optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode='max', patience=patience, factor=factor, verbose=True
@@ -117,6 +123,7 @@ def train_full(model, train_loader, val_loader, test_loader,
                lr=Config.LEARNING_RATE,
                early_stopping_patience=Config.EARLY_STOPPING_PATIENCE,
                checkpoint_filename='best_model.pth'):
+    """Full training loop"""
     
     criterion = get_loss_function(loss_name)
     optimizer = get_optimizer(model, optimizer_name, lr)
