@@ -1,9 +1,35 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from tqdm import tqdm
 from config import Config
 from src.utils import save_checkpoint
+
+
+class FocalLoss(nn.Module):
+    """Focal Loss for handling class imbalance"""
+    def __init__(self, alpha=None, gamma=2.0, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        ce_loss = F.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-ce_loss)
+        focal_loss = (1 - pt) ** self.gamma * ce_loss
+        
+        if self.alpha is not None:
+            alpha_t = self.alpha[targets]
+            focal_loss = alpha_t * focal_loss
+        
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss
 
 
 def train_one_epoch(model, train_loader, criterion, optimizer, device):
@@ -82,6 +108,8 @@ def get_loss_function(loss_name=Config.LOSS_FUNCTION):
     """Get loss function"""
     if loss_name == 'cross_entropy':
         return nn.CrossEntropyLoss()
+    elif loss_name == 'focal':
+        return FocalLoss(gamma=2.0)
     else:
         raise ValueError(f"Unsupported loss function: {loss_name}")
 
@@ -107,7 +135,7 @@ def get_scheduler(optimizer, scheduler_type='plateau',
     """Get learning rate scheduler"""
     if scheduler_type == 'plateau':
         return optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='max', patience=patience, factor=factor, verbose=True
+            optimizer, mode='max', patience=patience, factor=factor
         )
     elif scheduler_type == 'step':
         return optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
